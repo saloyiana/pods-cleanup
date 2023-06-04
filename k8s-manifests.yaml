@@ -1,0 +1,59 @@
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: failed-pods-cleanup
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["list", "delete"]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: failed-pods-cleanup
+subjects:
+- kind: ServiceAccount
+  name: failed-pods-cleanup
+  namespace: platform
+roleRef:
+  kind: ClusterRole
+  name: failed-pods-cleanup
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: failed-pods-cleanup
+  namespace: platform
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: failed-pods-cleanup
+  namespace: platform
+spec:
+  schedule: "0 * * * *"
+  successfulJobsHistoryLimit: 1
+  # failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: failed-pods-cleanup
+        spec:
+          serviceAccountName: failed-pods-cleanup
+          automountServiceAccountToken: true
+          containers:
+          - name: failed-pods-cleanup
+            image: saloyiana/pods-cleanup:v1.0
+            imagePullPolicy: IfNotPresent
+            resources:
+              requests:
+                cpu: "50m"
+                memory: "64Mi"
+              limits:
+                cpu: "100m"
+                memory: "1280Mi"
+          restartPolicy: OnFailure
